@@ -1,4 +1,5 @@
 use std::io::Write;
+use std::str::FromStr;
 
 use syntect::easy::HighlightLines;
 use syntect::highlighting::{Color, Style, StyleModifier};
@@ -204,6 +205,11 @@ impl<'a> Painter<'a> {
     }
 }
 
+/// Return text together with shell escape codes specifying the color.
+pub fn paint(text: &str, color: Color) -> String {
+    format!("{}{}", get_color_code(color, true), text)
+}
+
 /// Write section text to buffer with color escape codes.
 pub fn paint_text(text: &str, style: Style, output_buffer: &mut String) {
     if text.is_empty() {
@@ -218,8 +224,10 @@ pub fn paint_text(text: &str, style: Style, output_buffer: &mut String) {
     output_buffer.push_str(text);
 }
 
-/// ANSI color escape code.
-// See https://github.com/ogham/rust-ansi-term/blob/ff7eba98d55ad609c7fcc8c7bb0859b37c7545cc/src/ansi.rs#L82-L112
+/// Return shell escape codes specifying either an RGB color, or a user-customizable 8-bit ANSI color code.
+// See
+// https://en.wikipedia.org/wiki/ANSI_escape_code#8-bit
+// https://github.com/ogham/rust-ansi-term/blob/ff7eba98d55ad609c7fcc8c7bb0859b37c7545cc/src/ansi.rs#L82-L112
 fn get_color_code(color: Color, foreground: bool) -> String {
     if color.a == 0 {
         // See https://github.com/sharkdp/bat/pull/543
@@ -233,6 +241,47 @@ fn get_color_code(color: Color, foreground: bool) -> String {
             color.b
         )
     }
+}
+
+// See
+// https://en.wikipedia.org/wiki/ANSI_escape_code#8-bit
+pub fn ansi_color_name_to_code(name: &str) -> Option<String> {
+    match name.to_lowercase().as_ref() {
+        "black" => Some("0"),
+        "red" => Some("1"),
+        "green" => Some("2"),
+        "yellow" => Some("3"),
+        "blue" => Some("4"),
+        "magenta" => Some("5"),
+        "purple" => Some("5"),
+        "cyan" => Some("6"),
+        "white" => Some("7"),
+        "black-bright" => Some("8"),
+        "red-bright" => Some("9"),
+        "green-bright" => Some("10"),
+        "yellow-bright" => Some("11"),
+        "blue-bright" => Some("12"),
+        "magenta-bright" => Some("13"),
+        "purple-bright" => Some("13"),
+        "cyan-bright" => Some("14"),
+        "white-bright" => Some("15"),
+        _ => None,
+    }
+    .and_then(|s| Some(s.to_string()))
+}
+
+pub fn color_from_ansi_name(name: &str) -> Option<Color> {
+    ansi_color_name_to_code(name).and_then(|s| Some(color_from_ansi_code(&s)))
+}
+
+/// Convert 8-bit ANSI code to #RGBA string with ANSI code in red channel and 0 in alpha channel.
+// See https://github.com/sharkdp/bat/pull/543
+pub fn color_from_ansi_code(s: &str) -> Color {
+    Color::from_str(&format!(
+        "#{:02x}000000",
+        s.parse::<u8>().expect(&format!("Invalid color: {}", s)),
+    ))
+    .unwrap()
 }
 
 mod superimpose_style_sections {

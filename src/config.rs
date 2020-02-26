@@ -5,6 +5,7 @@ use syntect::parsing::SyntaxSet;
 
 use crate::cli;
 use crate::env;
+use crate::paint;
 use crate::style;
 
 pub struct Config<'a> {
@@ -14,6 +15,9 @@ pub struct Config<'a> {
     pub minus_emph_style_modifier: StyleModifier,
     pub plus_style_modifier: StyleModifier,
     pub plus_emph_style_modifier: StyleModifier,
+    pub commit_color: Color,
+    pub file_color: Color,
+    pub hunk_color: Color,
     pub syntax_set: &'a SyntaxSet,
     pub terminal_width: usize,
     pub width: Option<usize>,
@@ -45,7 +49,7 @@ pub fn get_config<'a>(
     };
 
     let minus_style_modifier = StyleModifier {
-        background: Some(color_from_arg(
+        background: Some(color_from_arg_or_mode_default(
             opt.minus_color.as_ref(),
             is_light_mode,
             style::LIGHT_THEME_MINUS_COLOR,
@@ -60,7 +64,7 @@ pub fn get_config<'a>(
     };
 
     let minus_emph_style_modifier = StyleModifier {
-        background: Some(color_from_arg(
+        background: Some(color_from_arg_or_mode_default(
             opt.minus_emph_color.as_ref(),
             is_light_mode,
             style::LIGHT_THEME_MINUS_EMPH_COLOR,
@@ -75,7 +79,7 @@ pub fn get_config<'a>(
     };
 
     let plus_style_modifier = StyleModifier {
-        background: Some(color_from_arg(
+        background: Some(color_from_arg_or_mode_default(
             opt.plus_color.as_ref(),
             is_light_mode,
             style::LIGHT_THEME_PLUS_COLOR,
@@ -86,7 +90,7 @@ pub fn get_config<'a>(
     };
 
     let plus_emph_style_modifier = StyleModifier {
-        background: Some(color_from_arg(
+        background: Some(color_from_arg_or_mode_default(
             opt.plus_emph_color.as_ref(),
             is_light_mode,
             style::LIGHT_THEME_PLUS_EMPH_COLOR,
@@ -103,6 +107,9 @@ pub fn get_config<'a>(
         minus_emph_style_modifier,
         plus_style_modifier,
         plus_emph_style_modifier,
+        commit_color: color_from_rgb_or_ansi_code(&opt.commit_color),
+        file_color: color_from_rgb_or_ansi_code(&opt.file_color),
+        hunk_color: color_from_rgb_or_ansi_code(&opt.hunk_color),
         terminal_width,
         width,
         tab_width: opt.tab_width,
@@ -168,7 +175,15 @@ fn valid_theme_name_or_none(theme_name: Option<&String>, theme_set: &ThemeSet) -
     }
 }
 
-fn color_from_arg(
+fn color_from_rgb_or_ansi_code(s: &str) -> Color {
+    if s.starts_with("#") {
+        Color::from_str(s).expect(&format!("Invalid color: {}", s))
+    } else {
+        paint::color_from_ansi_name(s).expect(&format!("Invalid color: {}", s))
+    }
+}
+
+fn color_from_arg_or_mode_default(
     arg: Option<&String>,
     is_light_mode: bool,
     light_theme_default: Color,
